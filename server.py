@@ -61,28 +61,42 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path in ("", "/"):
-            self._serve_file(STATIC_DIR / "index.html", "text/html")
+            self._serve_file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
+        elif path.startswith("/assets/"):
+            rel_path = path[len("/assets/"):]
+            file_path = STATIC_DIR / "assets" / rel_path
+            self._serve_static(file_path)
         elif path.startswith("/static/"):
             rel_path = path[len("/static/"):]
             file_path = STATIC_DIR / rel_path
-            content_type = "text/plain"
-            if file_path.suffix == ".html":
-                content_type = "text/html"
-            elif file_path.suffix == ".css":
-                content_type = "text/css"
-            elif file_path.suffix == ".js":
-                content_type = "application/javascript"
-            elif file_path.suffix in (".png", ".jpg", ".ico"):
-                content_type = f"image/{file_path.suffix[1:]}"
-            self._serve_file(file_path, content_type)
+            self._serve_static(file_path)
         elif path == "/api/stats":
             self._handle_stats()
         elif path == "/api/schema":
             self._handle_schema()
         elif path == "/api/config/gemini":
             self._handle_get_gemini_config()
+        elif (STATIC_DIR / path.lstrip("/")).is_file():
+            self._serve_static(STATIC_DIR / path.lstrip("/"))
         else:
             self.send_error(404, "Endpoint not found")
+
+    def _serve_static(self, file_path: Path):
+        content_type = "text/plain"
+        if file_path.suffix == ".html":
+            content_type = "text/html; charset=utf-8"
+        elif file_path.suffix == ".css":
+            content_type = "text/css; charset=utf-8"
+        elif file_path.suffix == ".js":
+            content_type = "application/javascript; charset=utf-8"
+        elif file_path.suffix == ".svg":
+            content_type = "image/svg+xml"
+        elif file_path.suffix in (".png", ".jpg", ".jpeg", ".ico"):
+            ext = "jpeg" if file_path.suffix == ".jpg" else file_path.suffix[1:]
+            content_type = f"image/{ext}"
+        elif file_path.suffix == ".json":
+            content_type = "application/json"
+        self._serve_file(file_path, content_type)
 
     def do_POST(self):
         parsed = urlparse(self.path)
