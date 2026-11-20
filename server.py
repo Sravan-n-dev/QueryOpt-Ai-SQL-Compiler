@@ -165,7 +165,12 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
         try:
             content_len = int(self.headers.get("Content-Length", 0))
             raw_body = self.rfile.read(content_len).decode("utf-8")
-            payload = json.loads(raw_body)
+            try:
+                payload = json.loads(raw_body)
+            except Exception as json_err:
+                self._send_json({"success": False, "error_stage": "Input", "error_message": f"Malformed JSON: {str(json_err)}"}, status=400)
+                return
+
             query = payload.get("query", "").strip()
             mode = payload.get("mode", "sql")
 
