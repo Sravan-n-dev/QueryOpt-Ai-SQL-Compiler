@@ -1,0 +1,195 @@
+// ============================================================================
+// QueryOpt AI — SQL Subset Grammar (Lark EBNF)
+// ============================================================================
+// A complete, unambiguous Lark grammar covering:
+//   SELECT (with DISTINCT, column lists, *, aliases, qualified names),
+//   FROM (single/multiple tables with aliases),
+//   JOIN (INNER JOIN / JOIN … ON …),
+//   WHERE (AND/OR with correct precedence, parenthesized conditions,
+//          comparison operators),
+//   ORDER BY (ASC/DESC),
+//   LIMIT,
+//   Literals (strings, integers, floats).
+//
+// Conventions:
+//   • Rules    → lowercase (e.g. select_stmt)
+//   • Terminals → UPPERCASE  (e.g. SELECT, NAME)
+//   • ?rule     → inlined by Lark when the rule has a single child
+//   • Keywords are case-insensitive (/…/i)
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// Top-level: a single SELECT statement with an optional trailing semicolon.
+// ---------------------------------------------------------------------------
+start: select_stmt ";"?
+
+// ---------------------------------------------------------------------------
+// SELECT statement
+//   SELECT [DISTINCT] <select_list>
+//   FROM   <from_clause>
+//   [<join_clause> …]
+//   [WHERE  <condition>]
+//   [ORDER BY <order_list>]
+//   [LIMIT  <integer>]
+// ---------------------------------------------------------------------------
+select_stmt: SELECT distinct? select_list FROM from_clause join_clause* where_clause? order_by_clause? limit_clause?
+
+// DISTINCT keyword (optional flag)
+distinct: DISTINCT
+
+// ---------------------------------------------------------------------------
+// Select list — a comma-separated list of columns, or a bare *.
+// ---------------------------------------------------------------------------
+select_list: select_item ("," select_item)*
+
+// A single item in the SELECT list: either * (optionally table-qualified)
+// or an expression/column with an optional alias.
+?select_item: star_column
+            | column_expr alias? -> aliased_column
+
+// Star / qualified star  (e.g.  *  or  t.*)
+star_column: (NAME ".")? STAR
+
+// Column alias — the AS keyword is optional.
+//   e.g.  col AS a   or   col a
+alias: AS NAME  -> alias
+     | NAME     -> alias
+
+// ---------------------------------------------------------------------------
+// Column expressions that can appear in SELECT, WHERE, ORDER BY, etc.
+// These are either qualified column references or literals.
+// ---------------------------------------------------------------------------
+?column_expr: column_ref
+            | literal
+
+// A column reference, optionally qualified by a table/alias name.
+//   e.g.  id   or   t.id
+column_ref: (NAME ".")? NAME
+
+// ---------------------------------------------------------------------------
+// Literals: single-quoted strings, floats, and integers.
+// Float is checked before integer so "3.14" is not split.
+// ---------------------------------------------------------------------------
+?literal: FLOAT_NUMBER  -> float_literal
+        | INT_NUMBER    -> int_literal
+        | SQ_STRING     -> string_literal
+
+// ---------------------------------------------------------------------------
+// FROM clause — one or more tables separated by commas (implicit cross join).
+//   e.g.  FROM orders   or   FROM orders o, customers c
+// ---------------------------------------------------------------------------
+from_clause: table_ref ("," table_ref)*
+
+// A table name with an optional alias (AS is optional).
+//   e.g.  orders   orders o   orders AS o
+table_ref: NAME (AS? NAME)?
+
+// ---------------------------------------------------------------------------
+// JOIN clause — INNER JOIN or bare JOIN (both treated as inner).
+//   e.g.  JOIN items i ON i.order_id = o.id
+//         INNER JOIN items i ON i.order_id = o.id
+// ---------------------------------------------------------------------------
+join_clause: join_type table_ref ON condition
+
+// Join type terminal — "INNER JOIN" or just "JOIN".
+join_type: INNER? JOIN -> join_type
+
+// ---------------------------------------------------------------------------
+// WHERE clause
+// ---------------------------------------------------------------------------
+where_clause: WHERE condition
+
+// ---------------------------------------------------------------------------
+// Conditions / Boolean expressions
+//
+// Precedence (lowest to highest):
+//   1. OR
+//   2. AND
+//   3. Parenthesized groups and comparisons (atoms)
+//
+// Using separate rules enforces AND binding tighter than OR without
+// ambiguity, following standard SQL semantics.
+// ---------------------------------------------------------------------------
+?condition: or_expr
+
+// OR has the lowest precedence.
+?or_expr: and_expr (OR and_expr)*  -> or_expr
+
+// AND binds tighter than OR.
+?and_expr: cond_atom (AND cond_atom)* -> and_expr
+
+// An atomic condition: either a parenthesized group or a comparison.
+?cond_atom: "(" condition ")"  -> paren_cond
+          | comparison
+
+// A single comparison:  <expr> <comp_op> <expr>
+comparison: column_expr COMP_OP column_expr
+
+// ---------------------------------------------------------------------------
+// ORDER BY clause
+//   e.g.  ORDER BY price DESC, name ASC
+// ---------------------------------------------------------------------------
+order_by_clause: ORDER BY order_item ("," order_item)*
+
+// A single ordering item — direction defaults to ASC if omitted.
+order_item: column_ref (ASC | DESC)?
+
+// ---------------------------------------------------------------------------
+// LIMIT clause
+//   e.g.  LIMIT 10
+// ---------------------------------------------------------------------------
+limit_clause: LIMIT INT_NUMBER
+
+// ============================================================================
+// TERMINALS
+// ============================================================================
+
+// -- SQL keywords (case-insensitive) ----------------------------------------
+SELECT:   /SELECT/i
+DISTINCT: /DISTINCT/i
+FROM:     /FROM/i
+WHERE:    /WHERE/i
+AND:      /AND/i
+OR:       /OR/i
+ON:       /ON/i
+JOIN:     /JOIN/i
+INNER:    /INNER/i
+ORDER:    /ORDER/i
+BY:       /BY/i
+ASC:      /ASC/i
+DESC:     /DESC/i
+LIMIT:    /LIMIT/i
+AS:       /AS/i
+
+// -- Comparison operators ---------------------------------------------------
+// Order matters: multi-char operators before single-char to avoid partial
+// matches (e.g. "<=" must be tried before "<").
+COMP_OP: "<=" | ">=" | "!=" | "<>" | "=" | "<" | ">"
+
+// -- Star (for SELECT *) ---------------------------------------------------
+STAR: "*"
+
+// -- Identifiers (table names, column names, aliases) -----------------------
+// Standard SQL-style: starts with a letter or underscore, followed by
+// word characters.  Defined with negative lookahead via priority to avoid
+// clashing with keywords.
+NAME: /(?!(?:SELECT|DISTINCT|FROM|WHERE|AND|OR|ON|JOIN|INNER|ORDER|BY|ASC|DESC|LIMIT|AS)\b)[A-Za-z_][A-Za-z0-9_]*/i
+
+// -- Numeric literals -------------------------------------------------------
+// Float must be defined before int so "3.14" is matched as a float.
+FLOAT_NUMBER: /\d+\.\d*/
+            | /\.\d+/
+INT_NUMBER:   /\d+/
+
+// -- String literals (single-quoted, with '' as escape for embedded quote) --
+SQ_STRING: "'" /([^']|'')*/ "'"
+
+// ============================================================================
+// Whitespace & comments — skipped automatically.
+// ============================================================================
+%import common.WS
+%ignore WS
+
+// Skip SQL single-line comments  (-- …)
+SQL_COMMENT: /--[^\n]*/
+%ignore SQL_COMMENT
