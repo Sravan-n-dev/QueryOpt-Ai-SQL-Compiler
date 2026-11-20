@@ -1,23 +1,20 @@
 """
 QueryOpt AI — Application Entry Point
 =====================================
-Starts the QueryOpt AI Streamlit web application.
+Starts the QueryOpt AI Developer Studio & Compiler Engine.
+
 Run via:
-    streamlit run app.py
+    python app.py
 """
 
-import os
 import sys
 from pathlib import Path
 
-# Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.database_config import initialize_database
-from ui.app_main import main
+from server import run_server
 
 if __name__ == "__main__":
-    initialize_database()
-    main()
+    run_server(host="0.0.0.0", port=8000)
