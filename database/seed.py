@@ -62,11 +62,11 @@ LAST_NAMES: List[str] = [
 ]
 
 BRANCH_FOR_DEPT = {
-    1: "Computer Science",
-    2: "Electronics",
-    3: "Mechanical",
-    4: "Civil",
-    5: "Mathematics",
+    1: "CSE",
+    2: "ECE",
+    3: "ME",
+    4: "CE",
+    5: "MATH",
 }
 
 

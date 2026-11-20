@@ -25,7 +25,10 @@
       <div class="pill pill-green"><span class="dot"></span> SQLite: Connected</div>
       <div class="pill"><span id="metric-records">3,000 Records</span></div>
       <div class="pill"><span id="metric-indexes">6 Indexes</span></div>
-      <div class="pill pill-blue" id="pill-ai"><span class="dot"></span> Gemini AI: Active</div>
+      <div class="pill pill-blue pill-clickable" id="pill-ai" onclick="openGeminiModal()" title="Click to configure Gemini API Key">
+        <span class="dot" id="pill-ai-dot"></span> <span id="pill-ai-text">Gemini AI: Connecting...</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="openGeminiModal()" title="Configure Gemini API Settings">⚙️ Gemini API</button>
     </div>
   </header>
 
@@ -77,9 +80,17 @@
             <span class="demo-badge">NL 1</span>
             <span class="demo-label">Students age > 23 in ECE</span>
           </div>
-          <div class="demo-item demo-nl" onclick="loadNLDemo(2)">
+          <div class="demo-item demo-nl" onclick="loadNLDemo(1)">
             <span class="demo-badge">NL 2</span>
+            <span class="demo-label">Names &amp; CGPA of CSE students</span>
+          </div>
+          <div class="demo-item demo-nl" onclick="loadNLDemo(2)">
+            <span class="demo-badge">NL 3</span>
             <span class="demo-label">Students scored > 80 marks</span>
+          </div>
+          <div class="demo-item demo-nl" onclick="loadNLDemo(3)">
+            <span class="demo-badge">NL 4</span>
+            <span class="demo-label">Top 10 students by CGPA</span>
           </div>
           <div class="demo-divider"></div>
           <div class="demo-item demo-err" onclick="loadErrorDemo(0)">
@@ -144,10 +155,18 @@
 
         <!-- NL Mode Area -->
         <div id="nl-input-container" style="display: none;">
-          <input type="text" id="nl-input" placeholder="Type plain English query... (e.g. Find students enrolled in courses with marks greater than 80)" />
+          <input type="text" id="nl-input" placeholder="Type plain English query... (e.g. List out all the students above age 23 whose branch is ECE.)" />
+          <div class="editor-footer">
+            <span class="shortcut-tip">Press <kbd>Enter</kbd> to translate &amp; compile • Powered by Gemini AI &amp; Schema Engine</span>
+            <button class="btn-link" onclick="openGeminiModal()">⚙️ Configure Gemini API Key</button>
+          </div>
           <div id="nl-generated-preview" style="display: none;">
-            <div class="preview-label">Generated SQL:</div>
+            <div class="preview-header">
+              <span class="preview-label">Generated SQL Query:</span>
+              <span class="preview-badge" id="nl-engine-badge">Schema Engine</span>
+            </div>
             <pre><code id="nl-generated-sql"></code></pre>
+            <div class="preview-explanation" id="nl-generated-explanation"></div>
           </div>
         </div>
       </section>
@@ -283,6 +302,54 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Gemini API Configuration Modal -->
+  <div class="modal-overlay" id="gemini-modal" style="display: none;" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-icon">🤖</span>
+          <div>
+            <h3>Connect Google Gemini API</h3>
+            <p class="modal-subtitle">Enable live AI Natural Language to SQL generation</p>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeGeminiModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="info-alert">
+          <strong>ℹ️ How to connect:</strong>
+          <p>Get a free API key instantly from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Paste it below and click <strong>Test &amp; Save</strong>. It will be saved into your <code>.env</code> file.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-key-input">Gemini API Key</label>
+          <div class="input-with-button">
+            <input type="password" id="gemini-key-input" placeholder="AIzaSy..." spellcheck="false" autocomplete="off" />
+            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleKeyVisibility()">👁️ Show</button>
+          </div>
+          <small class="form-hint" id="key-hint">Status: checking...</small>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-model-select">Model Version</label>
+          <select id="gemini-model-select" class="form-select">
+            <option value="gemini-2.0-flash" selected>gemini-2.0-flash (Recommended: Fastest &amp; High Accuracy)</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+          </select>
+        </div>
+
+        <div id="modal-status-box" style="display: none;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="clearGeminiKey()">Clear Key (Use Fallback Engine)</button>
+        <button class="btn btn-primary" id="btn-save-key" onclick="saveGeminiKey()">Test &amp; Connect API</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

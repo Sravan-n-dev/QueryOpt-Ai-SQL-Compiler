@@ -7,7 +7,6 @@ Schema-grounded prompts for translating natural language queries to valid SQL.
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Dict
 
 
 def get_schema_description(conn: sqlite3.Connection) -> str:
@@ -41,16 +40,34 @@ Your task is to translate an English question into a syntactically and semantica
 DATABASE SCHEMA:
 {schema_description}
 
-SUPPORTED SQL GRAMMAR & CONSTRAINTS:
-1. ONLY generate read-only SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, or ALTER.
-2. Supported features: SELECT, SELECT *, FROM, WHERE, AND, OR, parentheses, INNER JOIN, JOIN ON, ORDER BY (ASC/DESC), LIMIT, DISTINCT.
-3. Use exact table names and column names from the schema above. Do NOT invent columns or tables.
-4. If the user asks for information not present in the schema (e.g. attendance, fees), do NOT hallucinate columns; state the limitation in assumptions.
-5. Return your answer ONLY as a JSON object with this exact structure:
+DATA DOMAIN RULES:
+- Student.branch uses short codes: 'CSE', 'ECE', 'ME', 'CE', 'MATH'.
+  * Electronics / ECE -> 'ECE'
+  * Computer Science / CS / CSE -> 'CSE'
+  * Mechanical / Mech -> 'ME'
+  * Civil -> 'CE'
+  * Mathematics / Math -> 'MATH'
+
+COMPILER GRAMMAR CONSTRAINTS (VERY IMPORTANT):
+1. ONLY generate standard read-only SELECT statements. Never generate INSERT, UPDATE, DELETE, DROP, or ALTER.
+2. Supported syntax:
+   - SELECT [DISTINCT] col1, col2, ... (or SELECT *)
+   - FROM table [t1]
+   - INNER JOIN table2 [t2] ON t1.col = t2.col
+   - WHERE condition [AND/OR condition]
+   - ORDER BY col [ASC|DESC]
+   - LIMIT n
+3. DO NOT use aggregations or clauses not supported by the custom compiler:
+   - NO GROUP BY, NO HAVING
+   - NO COUNT, SUM, AVG, MIN, MAX
+   - NO Subqueries or UNION
+4. When selecting columns across joins, always qualify with table alias or table name (e.g. s.name, d.dept_name).
+5. If the user asks for non-existent attributes (e.g. attendance, fees), do NOT invent them; return an empty sql string and describe the limitation in the explanation.
+6. Return your answer ONLY as a raw JSON object with this exact structure (no markdown fences, just JSON):
 {{
-  "sql": "SELECT ...",
+  "sql": "SELECT ... FROM ... WHERE ... LIMIT ...;",
   "explanation": "Short 1-2 sentence explanation of how the query answers the question",
-  "assumptions": ["List of assumptions or empty list"]
+  "assumptions": ["List of assumptions made"]
 }}
 """
 

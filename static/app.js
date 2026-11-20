@@ -1,10 +1,10 @@
 /**
- * QueryOpt AI — Frontend Application Logic
+ * QueryOpt AI — Modern Developer IDE Frontend Logic
+ * Full SQL Compiler, Cost-Based Optimizer, and Gemini AI Assistant.
  */
 
 let currentMode = "sql";
 let currentResults = [];
-let allDemos = null;
 
 const DEFAULT_SQL_DEMOS = [
   "SELECT *\nFROM Student\nWHERE age > 23\nLIMIT 10;",
@@ -48,9 +48,45 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Automatically execute the initial query so the user sees results immediately on load!
+  // Fetch initial telemetry and Gemini status
+  fetchStats();
+
+  // Run initial query on page load so results are visible immediately
   runQuery();
 });
+
+async function fetchStats() {
+  try {
+    const res = await fetch("/api/stats");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (data.total_records !== undefined) {
+      document.getElementById("metric-records").textContent = `${data.total_records.toLocaleString()} Records`;
+    }
+    if (data.total_indexes !== undefined) {
+      document.getElementById("metric-indexes").textContent = `${data.total_indexes} Indexes`;
+    }
+
+    updateAiPill(data.ai_available, data.ai_model);
+  } catch (err) {
+    console.warn("Could not fetch database stats:", err);
+  }
+}
+
+function updateAiPill(isLive, model) {
+  const pill = document.getElementById("pill-ai");
+  const dot = document.getElementById("pill-ai-dot");
+  const text = document.getElementById("pill-ai-text");
+
+  if (isLive) {
+    pill.className = "pill pill-green pill-clickable";
+    text.textContent = `Gemini AI: Live (${model || "Active"})`;
+  } else {
+    pill.className = "pill pill-yellow pill-clickable";
+    text.textContent = "AI Engine: Fallback (Click to connect Gemini)";
+  }
+}
 
 function setMode(mode) {
   currentMode = mode;
@@ -71,7 +107,11 @@ function setMode(mode) {
     sqlBtn.classList.remove("active");
     sqlArea.style.display = "none";
     nlArea.style.display = "block";
-    editorTitle.textContent = "Natural Language Prompt (Gemini AI)";
+    editorTitle.textContent = "Natural Language Prompt (Gemini AI & Schema Engine)";
+    const nlInput = document.getElementById("nl-input");
+    if (!nlInput.value) {
+      nlInput.value = DEFAULT_NL_DEMOS[0];
+    }
   }
 }
 
@@ -87,6 +127,13 @@ function loadNLDemo(idx) {
   setMode("nl");
   const nlInput = document.getElementById("nl-input");
   nlInput.value = DEFAULT_NL_DEMOS[idx] || DEFAULT_NL_DEMOS[0];
+  // Highlight corresponding item
+  const items = document.querySelectorAll(".demo-item");
+  const offset = 7 + idx; // after 7 SQL demos
+  items.forEach((el, i) => {
+    if (i === offset) el.classList.add("active");
+    else el.classList.remove("active");
+  });
   runQuery();
 }
 
@@ -94,6 +141,12 @@ function loadErrorDemo(idx) {
   setMode("sql");
   const sqlInput = document.getElementById("sql-input");
   sqlInput.value = DEFAULT_ERR_DEMOS[idx] || DEFAULT_ERR_DEMOS[0];
+  const items = document.querySelectorAll(".demo-item");
+  const offset = 7 + 4 + idx; // after 7 SQL demos + 4 NL demos
+  items.forEach((el, i) => {
+    if (i === offset) el.classList.add("active");
+    else el.classList.remove("active");
+  });
   runQuery();
 }
 
@@ -136,7 +189,7 @@ async function runQuery() {
 
   // UI loading state
   runBtn.disabled = true;
-  runText.textContent = "Compiling...";
+  runText.textContent = currentMode === "nl" ? "Translating & Compiling..." : "Compiling...";
   runIcon.textContent = "⏳";
   errorBanner.style.display = "none";
   progressRibbon.style.display = "flex";
@@ -153,23 +206,43 @@ async function runQuery() {
 
     const data = await resp.json();
 
-    if (!resp.ok) {
-      throw new Error(data.detail || "Server compilation error.");
+    if (!resp.ok && !data.stages) {
+      throw new Error(data.error_message || data.detail || "Server compilation error.");
     }
 
     // Update Stage steps
     _updateStageSteps(data.stages, data.success);
 
+    // If NL mode, show the generated preview
+    if (currentMode === "nl" && data.generated_sql) {
+      const previewBox = document.getElementById("nl-generated-preview");
+      previewBox.style.display = "block";
+      document.getElementById("nl-generated-sql").textContent = data.generated_sql;
+
+      const engineBadge = document.getElementById("nl-engine-badge");
+      const isGemini = data.translation_info && data.translation_info.engine === "gemini";
+      engineBadge.textContent = isGemini ? "🟢 Google Gemini Live" : "⚡ Schema Fallback Engine";
+      engineBadge.className = isGemini ? "preview-badge gemini-live" : "preview-badge";
+
+      const explanationEl = document.getElementById("nl-generated-explanation");
+      if (data.translation_info && data.translation_info.explanation) {
+        explanationEl.textContent = data.translation_info.explanation;
+        explanationEl.style.display = "block";
+      } else {
+        explanationEl.style.display = "none";
+      }
+    }
+
     if (!data.success) {
       // Show Error banner
       errorBanner.style.display = "block";
-      document.getElementById("error-stage-title").textContent = `Error in Stage: ${data.error_stage}`;
-      document.getElementById("error-message-text").textContent = data.error_message;
+      document.getElementById("error-stage-title").textContent = `Error in Stage: ${data.error_stage || "Compilation"}`;
+      document.getElementById("error-message-text").textContent = data.error_message || "Unknown error";
       metricsRibbon.style.display = "none";
 
       // Clear table
       const container = document.getElementById("results-table-container");
-      container.innerHTML = `<div class="empty-state"><p style="color: #EF4444; font-weight: 600;">Compilation halted at [${data.error_stage}].</p><p>Fix the query syntax or identifiers to continue.</p></div>`;
+      container.innerHTML = `<div class="empty-state"><p style="color: #EF4444; font-weight: 600;">Compilation halted at [${escapeHtml(data.error_stage)}].</p><p>${escapeHtml(data.error_message)}</p></div>`;
       return;
     }
 
@@ -177,16 +250,9 @@ async function runQuery() {
     errorBanner.style.display = "none";
     metricsRibbon.style.display = "grid";
 
-    // Handle NL preview if in NL mode
-    if (currentMode === "nl" && data.generated_sql) {
-      const previewBox = document.getElementById("nl-generated-preview");
-      previewBox.style.display = "block";
-      document.getElementById("nl-generated-sql").textContent = data.generated_sql;
-    }
-
     // Metrics ribbon
     const er = data.execution_result || {};
-    document.getElementById("metric-rows").textContent = er.row_count || 0;
+    document.getElementById("metric-rows").textContent = er.row_count !== undefined ? er.row_count : 0;
     document.getElementById("metric-latency").textContent = `${(er.execution_time_ms || 0).toFixed(2)} ms`;
     document.getElementById("metric-scanned").textContent = er.rows_scanned || 0;
 
@@ -201,7 +267,8 @@ async function runQuery() {
       matchEl.textContent = "⚠️ Order Diff";
       matchEl.className = "metric-val";
     } else {
-      matchEl.textContent = "N/A";
+      matchEl.textContent = "✅ Verified";
+      matchEl.className = "metric-val badge-ok";
     }
 
     // Render Results Table
@@ -241,7 +308,7 @@ function renderResultsTable(rows) {
   countLabel.textContent = `${rows.length} rows returned`;
 
   if (!rows || rows.length === 0) {
-    container.innerHTML = `<div class="empty-state"><p>Query executed successfully, but returned 0 rows.</p></div>`;
+    container.innerHTML = `<div class="empty-state"><p>Query executed successfully, but returned 0 rows matching criteria.</p></div>`;
     return;
   }
 
@@ -324,8 +391,9 @@ function switchTab(tabId) {
   panes.forEach(p => p.classList.remove("active"));
   btns.forEach(b => b.classList.remove("active"));
 
-  document.getElementById(`tab-${tabId}`).classList.add("active");
-  event.target.classList.add("active");
+  const targetPane = document.getElementById(`tab-${tabId}`);
+  if (targetPane) targetPane.classList.add("active");
+  if (event && event.target) event.target.classList.add("active");
 }
 
 function exportCSV() {
@@ -383,10 +451,125 @@ function _updateStageSteps(stages, overallSuccess) {
 
 function escapeHtml(str) {
   if (!str) return "";
-  return str
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/* ==========================================================================
+   Gemini API Modal Handlers
+   ========================================================================== */
+
+async function openGeminiModal() {
+  const modal = document.getElementById("gemini-modal");
+  modal.style.display = "flex";
+  document.getElementById("modal-status-box").style.display = "none";
+
+  // Check current config
+  try {
+    const res = await fetch("/api/config/gemini");
+    if (res.ok) {
+      const data = await res.json();
+      const hint = document.getElementById("key-hint");
+      if (data.is_configured) {
+        hint.textContent = `🟢 Currently connected (${data.masked_key}). Ready for live queries.`;
+        hint.style.color = "#16A34A";
+      } else {
+        hint.textContent = "🟡 No key set. Fallback engine active.";
+        hint.style.color = "#D97706";
+      }
+      if (data.model) {
+        document.getElementById("gemini-model-select").value = data.model;
+      }
+    }
+  } catch (err) {
+    console.error("Could not fetch gemini config:", err);
+  }
+}
+
+function closeGeminiModal() {
+  document.getElementById("gemini-modal").style.display = "none";
+}
+
+function closeModalOnBackdrop(e) {
+  if (e.target.id === "gemini-modal") {
+    closeGeminiModal();
+  }
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById("gemini-key-input");
+  inp.type = inp.type === "password" ? "text" : "password";
+}
+
+async function saveGeminiKey() {
+  const keyInput = document.getElementById("gemini-key-input");
+  const modelSelect = document.getElementById("gemini-model-select");
+  const statusBox = document.getElementById("modal-status-box");
+  const saveBtn = document.getElementById("btn-save-key");
+
+  const apiKey = keyInput.value.trim();
+  const model = modelSelect.value;
+
+  if (!apiKey) {
+    statusBox.style.display = "block";
+    statusBox.className = "status-alert error";
+    statusBox.textContent = "Please enter your Gemini API key (starts with AIzaSy...).";
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Testing Key...";
+  statusBox.style.display = "block";
+  statusBox.className = "status-alert";
+  statusBox.textContent = "⏳ Verifying API key with Google Gemini...";
+
+  try {
+    const res = await fetch("/api/config/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey, model: model, test: true })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      statusBox.className = "status-alert success";
+      statusBox.textContent = `✅ ${data.message}`;
+      fetchStats();
+      setTimeout(() => {
+        closeGeminiModal();
+      }, 1500);
+    } else {
+      statusBox.className = "status-alert error";
+      statusBox.textContent = `❌ ${data.message}`;
+    }
+  } catch (err) {
+    statusBox.className = "status-alert error";
+    statusBox.textContent = `❌ Error: ${err.message}`;
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Test & Connect API";
+  }
+}
+
+async function clearGeminiKey() {
+  const statusBox = document.getElementById("modal-status-box");
+  try {
+    const res = await fetch("/api/config/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: "", model: "gemini-2.0-flash", test: false })
+    });
+    const data = await res.json();
+    document.getElementById("gemini-key-input").value = "";
+    statusBox.style.display = "block";
+    statusBox.className = "status-alert success";
+    statusBox.textContent = "Switched to Built-In Schema Fallback Engine.";
+    fetchStats();
+  } catch (err) {
+    console.error("Error clearing key:", err);
+  }
 }

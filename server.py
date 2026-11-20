@@ -20,6 +20,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Load .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env")
+except Exception:
+    pass
+
 from config.database_config import get_connection, initialize_database
 from database.catalog import get_all_tables, get_table_stats
 from pipeline import QueryPipeline
@@ -72,6 +79,8 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
             self._handle_stats()
         elif path == "/api/schema":
             self._handle_schema()
+        elif path == "/api/config/gemini":
+            self._handle_get_gemini_config()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -81,6 +90,8 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/compile":
             self._handle_compile()
+        elif path == "/api/config/gemini":
+            self._handle_set_gemini_config()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -123,9 +134,76 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
                 "total_records": total_records,
                 "total_indexes": total_indexes,
                 "ai_available": pipeline.nl_translator.is_available(),
+                "ai_model": pipeline.nl_translator.client.model_name,
             })
         except Exception as e:
             self._send_json({"error": str(e)}, status=500)
+
+    def _handle_get_gemini_config(self):
+        key = pipeline.nl_translator.client.api_key
+        masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else ("***" if key else "")
+        self._send_json({
+            "is_configured": pipeline.nl_translator.is_available(),
+            "model": pipeline.nl_translator.client.model_name,
+            "masked_key": masked_key,
+        })
+
+    def _handle_set_gemini_config(self):
+        try:
+            content_len = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_len).decode("utf-8")
+            data = json.loads(raw_body)
+            api_key = data.get("api_key", "").strip()
+            model = data.get("model", "gemini-2.0-flash").strip()
+            test_conn = bool(data.get("test", True))
+
+            success, msg = pipeline.nl_translator.client.set_api_key(
+                api_key, model=model, test_connection=test_conn
+            )
+
+            if success:
+                # Persist to .env file if key provided
+                env_path = PROJECT_ROOT / ".env"
+                env_lines = []
+                if env_path.exists():
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        env_lines = f.readlines()
+
+                key_written = False
+                model_written = False
+                new_lines = []
+                for line in env_lines:
+                    if line.startswith("GEMINI_API_KEY="):
+                        new_lines.append(f"GEMINI_API_KEY={api_key}\n")
+                        key_written = True
+                    elif line.startswith("GEMINI_MODEL="):
+                        new_lines.append(f"GEMINI_MODEL={model}\n")
+                        model_written = True
+                    else:
+                        new_lines.append(line)
+
+                if not key_written:
+                    new_lines.append(f"GEMINI_API_KEY={api_key}\n")
+                if not model_written:
+                    new_lines.append(f"GEMINI_MODEL={model}\n")
+
+                with open(env_path, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+
+                self._send_json({
+                    "success": True,
+                    "message": msg,
+                    "is_live": pipeline.nl_translator.is_available(),
+                    "model": model,
+                })
+            else:
+                self._send_json({
+                    "success": False,
+                    "message": msg,
+                    "is_live": False,
+                }, status=400)
+        except Exception as e:
+            self._send_json({"success": False, "message": str(e)}, status=500)
 
     def _handle_schema(self):
         try:
@@ -178,7 +256,7 @@ class QueryOptHandler(SimpleHTTPRequestHandler):
                 self._send_json({"success": False, "error_stage": "Input", "error_message": "Query cannot be empty."}, status=400)
                 return
 
-            if mode == "natural_language":
+            if mode == "natural_language" or mode == "nl":
                 res = pipeline.process_natural_language(query)
             else:
                 res = pipeline.process_sql(query)
