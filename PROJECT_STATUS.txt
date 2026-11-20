@@ -100,18 +100,20 @@ Status Date:   November 2026
     - Natural language queries enter the exact same 7-stage compilation pipeline.
     - Graceful error handling when API key is missing or invalid.
 
-[X] 9. STREAMLIT FULL-STACK FRONTEND
-    - Modern dark/light-compatible database developer UI.
-    - Sidebar navigation with 8 views:
-      1. Dashboard: catalog statistics, database metrics, architecture summary.
-      2. Query Studio: dual tabs for SQL and Natural Language queries.
-      3. Pipeline Inspector: stage-by-stage token stream, AST, RA, and plans.
-      4. Optimization Dashboard: side-by-side before/after plans and cost breakdown.
-      5. Results Viewer: pandas DataFrame table with CSV download.
-      6. Schema Explorer: interactive catalog browser with live stats and sample rows.
-      7. Query History: session query activity audit log.
-      8. Demo Showcase: preset gallery with all 7 mandatory SQL queries, 4 NL queries,
-         and 4 diagnostic error scenarios.
+[X] 9. MODERN DEVELOPER STUDIO & WEB FRONTEND
+    - Zero-dependency built-in ThreadingHTTPServer & REST API (server.py).
+    - Modern dark/light database console frontend (static/index.html, static/style.css, static/app.js).
+    - Real-time instant output table rendering without page reloads or thread-locking.
+    - 1-click Preset Demo runner for all 7 SQL queries, 4 NL queries, and 3 error diagnostics.
+    - Live Stage Telemetry Ribbon (1 to 7 stages with timing in ms).
+    - Visual Inspector Tabs:
+      1. Results Data: Interactive table with CSV export.
+      2. Optimization & Rewrites: Side-by-side logical plans (Before vs After) with applied rewrite badges.
+      3. Physical Plan (CBO): Operator tree with cost metrics and selection rationales.
+      4. Relational Algebra: Full canonical operator tree.
+      5. AST Explorer: Structured AST class hierarchy.
+      6. Tokens Stream: Complete token type, value, line, column, and span offsets.
+    - Full SQLite verification check badge (100% equivalence).
 
 [X] 10. AUTOMATED TEST SUITE & DOCUMENTATION
     - Pytest test suite with 19 comprehensive unit and integration tests (100% passing).

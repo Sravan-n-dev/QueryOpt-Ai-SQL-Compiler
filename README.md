@@ -101,11 +101,11 @@ GEMINI_MODEL=gemini-2.0-flash
 ```
 *(Note: If no API key is configured, all core compiler and optimizer features function normally for SQL queries.)*
 
-### 5. Launch the Web Application
+### 5. Launch the Developer Studio & Web IDE
 ```bash
-streamlit run app.py
+python app.py
 ```
-The application will automatically initialize and seed the SQLite database on first launch!
+Open **`http://localhost:8000`** in your browser. The application will automatically initialize and seed the SQLite database with 3,000 students and 9,000+ records on first launch!
 
 ---
 
