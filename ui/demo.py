@@ -6,38 +6,40 @@ SQL queries, natural language queries, and compiler error diagnostics.
 """
 
 import time
+import pandas as pd
 import streamlit as st
+from relational_algebra.visualizer import ra_to_dot, ra_to_text_tree
 
 DEMO_SQL_QUERIES = [
     {
         "title": "Example 1: Simple Selection (Filter Pushdown)",
         "desc": "Single-table selection demonstrating predicate pushdown into the scan operator.",
-        "sql": "SELECT *\nFROM Student\nWHERE age > 23;",
+        "sql": "SELECT *\nFROM Student\nWHERE age > 23\nLIMIT 10;",
     },
     {
         "title": "Example 2: Projection and Selection (Pruning)",
         "desc": "Projection combined with equality selection, demonstrating attribute reduction.",
-        "sql": "SELECT name, cgpa\nFROM Student\nWHERE branch = 'ECE';",
+        "sql": "SELECT name, cgpa\nFROM Student\nWHERE branch = 'ECE'\nLIMIT 10;",
     },
     {
         "title": "Example 3: Multiple Conjunctive Predicates",
         "desc": "Conjunctive condition split by selection simplification and pushed down.",
-        "sql": "SELECT name, age\nFROM Student\nWHERE age > 23 AND branch = 'ECE';",
+        "sql": "SELECT name, age\nFROM Student\nWHERE age > 23 AND branch = 'ECE'\nLIMIT 10;",
     },
     {
         "title": "Example 4: Two-Table INNER JOIN (Hash Join Selection)",
         "desc": "Student-Department join evaluated by CBO; Hash Join chosen over Nested Loop.",
-        "sql": "SELECT s.name, d.dept_name\nFROM Student s\nINNER JOIN Department d\nON s.dept_id = d.dept_id;",
+        "sql": "SELECT s.name, d.dept_name\nFROM Student s\nINNER JOIN Department d\nON s.dept_id = d.dept_id\nLIMIT 10;",
     },
     {
         "title": "Example 5: JOIN with Multi-Table Filtering",
         "desc": "Predicate on Student pushed to left child; predicate on Department pushed to right child.",
-        "sql": "SELECT s.name, d.dept_name\nFROM Student s\nINNER JOIN Department d\nON s.dept_id = d.dept_id\nWHERE s.age > 23 AND d.dept_name = 'Computer Science';",
+        "sql": "SELECT s.name, d.dept_name\nFROM Student s\nINNER JOIN Department d\nON s.dept_id = d.dept_id\nWHERE s.age > 23 AND d.dept_name = 'Computer Science'\nLIMIT 10;",
     },
     {
         "title": "Example 6: Multi-Table 3-Way JOIN (Student + Enrollment + Course)",
         "desc": "3-relation join with marks filter. Hash join pipelines evaluated.",
-        "sql": "SELECT s.name, c.course_name, e.marks\nFROM Student s\nINNER JOIN Enrollment e\nON s.student_id = e.student_id\nINNER JOIN Course c\nON e.course_id = c.course_id\nWHERE e.marks > 80;",
+        "sql": "SELECT s.name, c.course_name, e.marks\nFROM Student s\nINNER JOIN Enrollment e\nON s.student_id = e.student_id\nINNER JOIN Course c\nON e.course_id = c.course_id\nWHERE e.marks > 80\nLIMIT 10;",
     },
     {
         "title": "Example 7: Sorting and Limiting (Top-K)",
@@ -132,6 +134,49 @@ def render_demo_gallery(pipeline):
                 if st.button(f"⚠️ Trigger Diagnostic {idx}", key=f"run_demo_err_{idx}"):
                     _run_and_set(pipeline, demo["sql"], "sql")
 
+    # ------------------------------------------------------------------------
+    # LIVE OUTPUT VIEWER ON DEMO PAGE
+    # ------------------------------------------------------------------------
+    latest = st.session_state.get("latest_result")
+    if latest:
+        st.markdown("---")
+        st.subheader("📋 Query Execution Output")
+        st.markdown(f"**Executed Query**: `{latest.generated_sql or latest.input_query}`")
+
+        if latest.success and latest.execution_result:
+            er = latest.execution_result
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.metric("Rows Output", er.row_count)
+            with c2:
+                st.metric("Volcano Execution Time", f"{er.execution_time_ms:.2f} ms")
+            with c3:
+                st.metric("Rows Scanned", er.rows_scanned)
+            with c4:
+                match_icon = "✅ 100% Match" if latest.results_match is True else "⚠️ Order Diff" if latest.results_match is False else "N/A"
+                st.metric("SQLite Equivalence", match_icon)
+
+            if er.rows:
+                df = pd.DataFrame(er.rows)
+                df.columns = [c.split(".")[-1] for c in df.columns]
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info("Query executed successfully but returned 0 rows.")
+
+            # Quick show optimization summary
+            if latest.applied_rules:
+                st.markdown(f"**Optimizations Applied ({len(latest.applied_rules)})**:")
+                for r in latest.applied_rules:
+                    st.markdown(f"- ⚡ **{r.rule_name}**: {r.description}")
+
+            if latest.optimization_report and latest.optimization_report.operator_choices:
+                st.markdown("**Physical Operator Decisions:**")
+                for ch in latest.optimization_report.operator_choices:
+                    st.markdown(f"- 🎯 **{ch.strategy}**: {ch.reason}")
+
+        else:
+            st.error(f"❌ **Compilation Error at [{latest.error_stage}]**:\n\n{latest.error_message}")
+
 
 def _run_and_set(pipeline, query_str: str, mode: str):
     with st.spinner("Processing through compiler pipeline..."):
@@ -152,11 +197,3 @@ def _run_and_set(pipeline, query_str: str, mode: str):
             "rows": res.execution_result.row_count if res.execution_result else 0,
             "result": res,
         })
-
-    if res.success:
-        st.success(
-            f"✅ **Success!** Compiled and executed in **{res.total_time_ms:.2f} ms** "
-            f"({res.execution_result.row_count} rows). Open **Pipeline Inspector** or **Optimization Dashboard** to explore."
-        )
-    else:
-        st.error(f"🛡️ **Caught at [{res.error_stage}]**:\n\n{res.error_message}")

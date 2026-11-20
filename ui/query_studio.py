@@ -6,6 +6,7 @@ AI-assisted Natural Language to SQL translation.
 """
 
 import time
+import pandas as pd
 import streamlit as st
 
 
@@ -61,10 +62,6 @@ def render_query_studio(pipeline):
                     f"✅ Query successfully compiled and executed in **{res.total_time_ms:.2f} ms**! "
                     f"Retrieved **{res.execution_result.row_count} rows**."
                 )
-                if res.results_match is True:
-                    st.info("🎯 **Verification**: Volcano engine output matches reference SQLite 100%.")
-
-                st.markdown("👉 Inspect stages in **Pipeline Inspector** or compare plans in **Optimization Dashboard**.")
             else:
                 st.error(f"❌ **{res.error_stage} Failed**:\n\n{res.error_message}")
 
@@ -135,16 +132,36 @@ def render_query_studio(pipeline):
                 st.error(f"❌ Translation failed: {trans_res.error}")
 
     # ------------------------------------------------------------------------
-    # Quick Results Preview
+    # FULL RESULTS DISPLAY ON QUERY STUDIO PAGE
     # ------------------------------------------------------------------------
     latest = st.session_state.get("latest_result")
-    if latest and latest.success and latest.execution_result and latest.execution_result.rows:
+    if latest:
         st.markdown("---")
-        st.subheader("Result Preview")
-        import pandas as pd
-        df = pd.DataFrame(latest.execution_result.rows)
-        # Clean qualified column names if present
-        df.columns = [c.split(".")[-1] for c in df.columns]
-        st.dataframe(df.head(10), use_container_width=True)
-        if len(df) > 10:
-            st.caption(f"Showing first 10 of {len(df)} rows. View all in **Results Viewer**.")
+        st.subheader("📋 Execution Results & Pipeline Summary")
+
+        if latest.success and latest.execution_result:
+            er = latest.execution_result
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("Total Rows", er.row_count)
+            with m2:
+                st.metric("Volcano Engine Latency", f"{er.execution_time_ms:.2f} ms")
+            with m3:
+                st.metric("Storage Rows Scanned", er.rows_scanned)
+            with m4:
+                match_val = "✅ 100% Match" if latest.results_match is True else "⚠️ Match" if latest.results_match is False else "N/A"
+                st.metric("SQLite Verification", match_val)
+
+            if er.rows:
+                df = pd.DataFrame(er.rows)
+                df.columns = [c.split(".")[-1] for c in df.columns]
+                st.dataframe(df, use_container_width=True)
+
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("📥 Download Result as CSV", csv, "query_results.csv", "text/csv")
+            else:
+                st.info("Query returned 0 rows.")
+
+            st.markdown("💡 *To see intermediate AST, tokens, and plan trees, open **Pipeline Inspector** in the sidebar.*")
+        elif not latest.success:
+            st.error(f"❌ **Error in [{latest.error_stage}]**:\n\n{latest.error_message}")
