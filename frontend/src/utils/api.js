@@ -19,16 +19,25 @@ export async function fetchSchema() {
   return res.json();
 }
 
-export async function getGeminiConfig() {
-  const res = await fetch(`${API_BASE}/api/config/gemini`);
+export async function getAzureOpenAIConfig() {
+  const res = await fetch(`${API_BASE}/api/config/azure-openai`);
   return res.json();
 }
 
-export async function setGeminiConfig(apiKey, model, test = true) {
-  const res = await fetch(`${API_BASE}/api/config/gemini`, {
+export async function setAzureOpenAIConfig(endpoint, apiKey, deployment, test = true) {
+  const res = await fetch(`${API_BASE}/api/config/azure-openai`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey, model, test }),
+    body: JSON.stringify({ endpoint, api_key: apiKey, deployment, test }),
+  });
+  return res.json();
+}
+
+export async function clearAzureOpenAIConfig() {
+  const res = await fetch(`${API_BASE}/api/config/azure-openai`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clear: true }),
   });
   return res.json();
 }

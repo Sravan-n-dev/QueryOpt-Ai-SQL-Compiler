@@ -92,7 +92,7 @@ def main():
 
         st.markdown("---")
         ai_status = "🟢 Active" if pipeline.nl_translator.is_available() else "⚪ Not Configured"
-        st.markdown(f"**Gemini AI Engine**: {ai_status}")
+        st.markdown(f"**Azure OpenAI Engine**: {ai_status}")
         st.caption("B.Tech Compiler Design Project")
 
     # Routing

@@ -83,7 +83,7 @@ def render_query_studio(pipeline):
             translate_btn = st.button("✨ Translate to SQL", key="translate_btn")
 
         if translate_btn:
-            with st.spinner("Translating via Google Gemini..."):
+            with st.spinner("Translating via Azure OpenAI..."):
                 trans_res = pipeline.nl_translator.translate(nl_input)
                 st.session_state["generated_translation"] = trans_res
 

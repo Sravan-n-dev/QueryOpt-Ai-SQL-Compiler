@@ -17,7 +17,7 @@
 6. **Cost-Based Query Optimizer (CBO)**: Selectivity estimation, catalog statistics profiling, TableScan vs. IndexScan evaluation, and HashJoin vs. NestedLoopJoin selection.
 7. **Physical Execution Engine**: Pure Volcano-style demand-driven iterator pipeline (`open()`, `next()`, `close()`, `reset()`) executing physical operators against persistent SQLite storage.
 
-In addition, an **AI Natural Language to SQL module** (powered by Google Gemini) translates plain English user queries into schema-constrained SQL queries that enter the exact same compiler pipeline.
+In addition, an **AI Natural Language to SQL module** (powered by Azure OpenAI (GPT-5 mini)) translates plain English user queries into schema-constrained SQL queries that enter the exact same compiler pipeline.
 
 ---
 
@@ -26,7 +26,7 @@ In addition, an **AI Natural Language to SQL module** (powered by Google Gemini)
 ```
 [ User Input: SQL Query ]           [ User Input: English Query ]
            │                                      │
-           │                               [ Google Gemini ]
+           │                               [ Azure OpenAI GPT-5 mini ]
            │                               (Schema-Aware LLM)
            │                                      │
            └──────────────────┬───────────────────┘
@@ -80,34 +80,37 @@ The persistent storage layer uses SQLite with deterministic sample data (3,000 s
 
 ### 1. Prerequisites
 - Python 3.11 or newer
-- Git
+- Node.js and npm (needed to rebuild the React interface)
 
-### 2. Clone the Repository
+### 2. Install Python dependencies
+From the project root:
 ```bash
-git clone https://github.com/Sravan-n-dev/QueryOpt-Ai-SQL-Compiler.git
-cd QueryOpt-Ai-SQL-Compiler
-```
-
-### 3. Install Dependencies
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. (Optional) Configure AI Natural Language Model
-Copy `.env.example` to `.env` and set your Google Gemini API key:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
-```
-*(Note: If no API key is configured, all core compiler and optimizer features function normally for SQL queries.)*
-
-### 5. Launch the Developer Studio & Web IDE
+### 3. Configure Azure OpenAI (for the Natural Language to SQL feature)
+Copy `.env.example` to `.env`, then replace the endpoint and API-key placeholders. Keep the deployment name as `gpt-5-mini`, matching your Foundry deployment.
 ```bash
+cp .env.example .env
+```
+Open `.env` and fill in the values from Azure Portal → your Azure OpenAI resource → **Keys and Endpoint**. The deployment name comes from Foundry → **Model deployments**.
+
+See **[AZURE_SETUP.md](AZURE_SETUP.md)** for the exact location of every placeholder and the values to copy. Do not commit or share `.env`.
+
+### 4. Build the React frontend and launch the application
+The Python server serves the prebuilt files in `static/`. Rebuild once after extracting this project so the updated Azure OpenAI settings dialog from `frontend/src/` is included:
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
 python app.py
 ```
-Open **`http://localhost:8000`** in your browser. The application will automatically initialize and seed the SQLite database with 3,000 students and 9,000+ records on first launch!
+Open **http://localhost:8000** in your browser. The app initializes and seeds the SQLite database automatically on first launch.
 
----
+> The `ui/` directory contains earlier Streamlit UI modules. The current entry point is `python app.py`; do not run `streamlit run app.py`.
 
 ## 🧪 Automated Testing
 
@@ -116,7 +119,7 @@ Execute the test suite verifying all 7 stages and SQLite equivalence:
 python -m pytest tests/ -v
 ```
 
-All 19 unit and integration tests verify:
+All 24 unit and integration tests verify:
 - Lexer tokenization & position tagging
 - Parser syntax checking & AST generation
 - Semantic error detection (invalid tables, missing columns)
@@ -134,3 +137,8 @@ All 19 unit and integration tests verify:
 - [Professor Demonstration Guide](docs/demo_guide.md)
 - [Limitations & Future Scope](docs/limitations.md)
 - [Project Status & Roadmap](PROJECT_STATUS.txt)
+
+
+## GPT-5 mini empty-response troubleshooting
+
+If Azure returns an empty response during Test & Connect, update to the latest project package. GPT-5 reasoning tokens share the `max_output_tokens` budget with visible text. The client now sets minimal reasoning effort, explicitly requests text for the connection test, and gives the model a larger token budget. See [AZURE_SETUP.md](AZURE_SETUP.md#6-troubleshooting-empty-response-from-gpt-5-mini).

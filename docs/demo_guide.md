@@ -5,19 +5,26 @@ Follow this 10-15 minute walkthrough to demonstrate all required compiler, optim
 ---
 
 ## Step 1: System Overview & Catalog Verification
-1. Launch the application:
+1. Build the current React interface once (after installing the frontend dependencies):
    ```bash
-   streamlit run app.py
+   cd frontend
+   npm install
+   npm run build
+   cd ..
    ```
-2. Open the **Dashboard**:
-   - Highlight the live metrics: 4 tables, 3,000 students, 9,000+ enrollments, 6 B-tree indexes.
-3. Open the **Schema Explorer**:
-   - Show table `Student`. Point out column statistics dynamically gathered from SQLite (`num_distinct`, `min_val`, `max_val`).
+2. Launch the current web application:
+   ```bash
+   python app.py
+   ```
+3. Open `http://localhost:8000`. The server initializes the SQLite database automatically.
+4. Show the live metrics in the top bar and the database/schema information in the inspector tabs.
+
+> Note: the `ui/` directory contains the project's earlier Streamlit UI modules. The current `app.py` entry point launches the React web interface through the built-in Python HTTP server; do not use `streamlit run app.py`.
 
 ---
 
 ## Step 2: Core SQL Compilation & Pipeline Inspection
-1. Go to **Query Studio** -> **SQL Query Editor**.
+1. Use the SQL mode in the left sidebar and the query editor.
 2. Run this query:
    ```sql
    SELECT name, age FROM Student WHERE age > 23 ORDER BY student_id LIMIT 10;
@@ -52,18 +59,18 @@ Follow this 10-15 minute walkthrough to demonstrate all required compiler, optim
 ---
 
 ## Step 4: AI Natural Language Interface
-1. Go to **Query Studio** -> **Natural Language to SQL**.
+1. Switch the left sidebar to **Natural Language** mode.
 2. Enter:
    > *"Show all students above age 23 in the ECE branch with CGPA above 8.0"*
 3. Click **Translate to SQL**:
-   - Show that Gemini produced a clean, valid SELECT query without hallucinating columns.
+   - Show that Azure OpenAI GPT-5 mini produced a clean, valid SELECT query without hallucinating columns.
 4. Click **Execute Generated SQL**:
    - Point out that the AI-generated SQL flowed through the **exact same compiler pipeline** as raw SQL.
 
 ---
 
 ## Step 5: Error Handling & Diagnostics
-1. Go to **Demo Showcase** -> **Error Diagnostic Scenarios**:
+1. Use the query editor to submit the following invalid SQL statements:
    - Run **Lexical Error** (`SELECT # FROM Student;`) -> Show lexer diagnostic.
    - Run **Syntax Error** (`SELECT FROM Student;`) -> Show parser diagnostic.
    - Run **Semantic Error** (`SELECT unknown_column FROM Student;`) -> Show semantic diagnostic.

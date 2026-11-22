@@ -63,7 +63,7 @@ QueryOpt AI implements an end-to-end database query compiler following tradition
 
 - **`ai/`**:
   - `prompts.py`: Schema-constrained system and user prompts.
-  - `llm_client.py`: Google GenAI SDK wrapper.
+  - `llm_client.py`: Azure OpenAI Responses API client using the OpenAI Python SDK.
   - `nl2sql.py`: Structured JSON extraction and SQL validation.
 
 - **`ui/`**:

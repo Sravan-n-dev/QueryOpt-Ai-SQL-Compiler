@@ -1,5 +1,5 @@
 """
-Tests for Natural Language to SQL and Gemini integration.
+Tests for Natural Language to SQL and Azure OpenAI integration.
 """
 
 from config.database_config import get_connection

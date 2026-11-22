@@ -2,7 +2,7 @@
 QueryOpt AI — Natural Language to SQL Translator
 ================================================
 Converts English requests into schema-aware SQL SELECT statements using
-Google Gemini API with a robust schema-grounded fallback engine.
+Azure OpenAI with a robust schema-grounded fallback engine.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from ai.llm_client import GeminiClient
+from ai.llm_client import AzureOpenAIClient
 from ai.prompts import build_system_prompt, build_user_prompt
 
 
@@ -26,7 +26,7 @@ class TranslationResult:
     assumptions: List[str] = field(default_factory=list)
     success: bool = True
     error: Optional[str] = None
-    engine: str = "gemini"  # 'gemini' or 'schema_fallback'
+    engine: str = "azure_openai"  # 'azure_openai' or 'schema_fallback'
     raw_response: str = ""
 
     def to_dict(self) -> dict:
@@ -45,7 +45,7 @@ class NL2SQLTranslator:
 
     def __init__(self, conn: sqlite3.Connection, api_key: Optional[str] = None, model: Optional[str] = None):
         self.conn = conn
-        self.client = GeminiClient(api_key=api_key, model=model)
+        self.client = AzureOpenAIClient(api_key=api_key, deployment=model)
 
     def is_available(self) -> bool:
         return self.client.is_available()
@@ -61,7 +61,7 @@ class NL2SQLTranslator:
                 error="Please enter a natural language query.",
             )
 
-        # 1. If Gemini API is available, try generating with live model
+        # 1. If Azure OpenAI is available, try generating with the deployed model
         if self.is_available():
             try:
                 system_prompt = build_system_prompt(self.conn)
@@ -93,18 +93,18 @@ class NL2SQLTranslator:
                         if not any(re.search(rf"\b{f}\b", sql, re.IGNORECASE) for f in forbidden):
                             return TranslationResult(
                                 sql=sql,
-                                explanation=f"[Google Gemini Live] {explanation}",
+                                explanation=f"[Azure OpenAI: {self.client.deployment_name}] {explanation}",
                                 assumptions=assumptions,
                                 success=True,
-                                engine="gemini",
+                                engine="azure_openai",
                                 raw_response=raw,
                             )
             except Exception as exc:
-                # If Gemini API fails (quota 429, network, etc.), fallback gracefully
-                return self._fallback_translate(nl_text, fallback_reason=f"Gemini API returned: {str(exc)}")
+                # If Azure OpenAI fails (quota 429, network, etc.), fallback gracefully
+                return self._fallback_translate(nl_text, fallback_reason=f"Azure OpenAI returned: {str(exc)}")
 
-        # 2. If Gemini is not configured, use the smart schema-grounded fallback
-        return self._fallback_translate(nl_text, fallback_reason="Gemini API key is not configured.")
+        # 2. If Azure OpenAI is not configured, use the schema-grounded fallback
+        return self._fallback_translate(nl_text, fallback_reason="Azure OpenAI is not configured.")
 
     def _fallback_translate(self, query: str, fallback_reason: str = "") -> TranslationResult:
         """Schema-aware heuristic translation ensuring Natural Language always functions."""

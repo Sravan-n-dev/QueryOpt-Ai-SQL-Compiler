@@ -31,11 +31,11 @@ export default function Navbar({ stats, onOpenSettings }) {
           <button
             className={`pill ${aiLive ? "pill-green" : "pill-amber"} nav-ai-pill`}
             onClick={onOpenSettings}
-            title="Configure Gemini API"
+            title="Configure Azure OpenAI"
           >
             <span className={`dot ${aiLive ? "dot-green" : "dot-amber"}`} />
             <Sparkles size={12} />
-            {aiLive ? `Gemini: Live` : "AI: Fallback"}
+            {aiLive ? `GPT-5 mini: Live` : "AI: Fallback"}
           </button>
           <button className="btn btn-ghost nav-settings-btn" onClick={onOpenSettings} title="Settings">
             <Settings size={16} />

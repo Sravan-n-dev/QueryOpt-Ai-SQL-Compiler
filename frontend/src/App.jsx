@@ -7,7 +7,7 @@ import MetricsRibbon from "./components/MetricsRibbon";
 import ErrorBanner from "./components/ErrorBanner";
 import NLPreview from "./components/NLPreview";
 import InspectorTabs from "./components/InspectorTabs";
-import GeminiModal from "./components/GeminiModal";
+import AzureOpenAIModal from "./components/AzureOpenAIModal";
 import { useQueryEngine } from "./hooks/useQueryEngine";
 import { fetchStats, fetchSchema } from "./utils/api";
 import { SQL_DEMOS } from "./utils/demos";
@@ -97,7 +97,7 @@ export default function App() {
         </main>
       </div>
 
-      <GeminiModal
+      <AzureOpenAIModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
         onConnected={loadStats}

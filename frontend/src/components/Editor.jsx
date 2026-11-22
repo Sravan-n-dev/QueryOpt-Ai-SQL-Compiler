@@ -64,7 +64,7 @@ export default function Editor({ mode, sqlValue, nlValue, onSqlChange, onNlChang
           />
           <div className="editor-footer">
             <span className="shortcut-hint"><kbd>Enter</kbd> to translate &amp; compile</span>
-            <span className="shortcut-hint">Powered by Gemini AI &amp; Schema Engine</span>
+            <span className="shortcut-hint">Powered by Azure OpenAI &amp; Schema Engine</span>
           </div>
         </div>
       )}

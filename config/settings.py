@@ -3,9 +3,9 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+import os
 
 from dotenv import load_dotenv
-import os
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -16,19 +16,16 @@ class Settings:
 
     project_root: Path = field(default=PROJECT_ROOT)
     database_path: Path = field(default_factory=lambda: PROJECT_ROOT / "database" / "college.db")
-    gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-2.0-flash"
+    azure_openai_api_key: Optional[str] = None
+    azure_openai_endpoint: Optional[str] = None
+    azure_openai_deployment: str = "gpt-5-mini"
     max_result_rows: int = 1000
     query_timeout: int = 30
 
 
 def get_settings() -> Settings:
-    """Load environment variables from .env and return a Settings instance.
-
-    Reads GEMINI_API_KEY, GEMINI_MODEL, DATABASE_PATH, MAX_RESULT_ROWS,
-    and QUERY_TIMEOUT from the environment (with sane defaults).
-    """
-    load_dotenv(PROJECT_ROOT / ".env")
+    """Load environment variables from the project .env file."""
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
 
     raw_db = os.getenv("DATABASE_PATH")
     if raw_db is not None:
@@ -41,8 +38,9 @@ def get_settings() -> Settings:
     return Settings(
         project_root=PROJECT_ROOT,
         database_path=db_path,
-        gemini_api_key=os.getenv("GEMINI_API_KEY"),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        azure_openai_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-mini"),
         max_result_rows=int(os.getenv("MAX_RESULT_ROWS", "1000")),
         query_timeout=int(os.getenv("QUERY_TIMEOUT", "30")),
     )

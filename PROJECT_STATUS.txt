@@ -94,7 +94,7 @@ Status Date:   November 2026
     - Reference engine comparison verifying 100% result equivalence against SQLite.
 
 [X] 8. AI NATURAL LANGUAGE TO SQL INTEGRATION
-    - Google Gemini integration via modern `google-genai` SDK.
+    - Azure OpenAI integration using the OpenAI Python SDK and Azure Responses API.
     - Schema-constrained prompts injecting table definitions, types, and foreign keys.
     - Safe parsing extracting SELECT statements and rejecting modification queries.
     - Natural language queries enter the exact same 7-stage compilation pipeline.
@@ -116,7 +116,7 @@ Status Date:   November 2026
     - Full SQLite verification check badge (100% equivalence).
 
 [X] 10. AUTOMATED TEST SUITE & DOCUMENTATION
-    - Pytest test suite with 19 comprehensive unit and integration tests (100% passing).
+    - Pytest test suite with 29 unit and integration tests (all passing in local test environment).
     - Complete documentation suite:
       * README.md
       * docs/architecture.md
